@@ -41,16 +41,15 @@ container Deltares_Cursus
 	, Descr = "Brondata die het model nodig heeft voor de verschillende berekeningen/analyses. De Data worden ingelezen vanuit de SourceDataDir. De bronnen zijn divers."
 	{
 		attribute<OverstromingsgevaarzoneringK> Overstromingsgevaarzonering (rdc_25m)
-		:	StorageName     = "%RSo_DataDir%/Omgeving/Water/Overstromingsgevaarzonering/Risicozonering_010722.tif";
+		:	StorageName     = "%RSo_DataDir%/Omgeving/Water/Overstromingsgevaarzonering/Risicozonering_010722.tif"
 		,	StorageType     = "gdal.grid"
 		,	StorageReadOnly = "True"
 		,	Source          = "Bron20, 3 juli 2022 per email";
 
-		unit<UInt32> DijkringGebied
-		: StorageName     = "%RSo_DataDir%/Omgeving/Water/dijkring/rws_dijkringgebieden_3_2_090420.gdb"
+		unit<uint32> DijkringGebied
+		: StorageName     = "%ProjDir%/Data/dijkring.shp"
 		, StorageType     = "gdal.vect"
 		, StorageReadOnly = "True"
-		, Source          = "Bron18 - 25 augustus 2022. conversie van shp naar gdb in arcgis 10.8.1"
 		{
 			attribute<rdc_meter> geometry       (poly);
 			attribute<.>         per_rdc_25m (rdc_25m) := poly2grid(geometry, rdc_25m);
@@ -61,19 +60,10 @@ container Deltares_Cursus
 	{
 		unit<uint32> Dijkringen := SourceData/DijkringGebied
 		{
-			
 			attribute<meter2>  Opp                       := count(per_rdc_25m, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
 			attribute<meter2>  Opp_Zeer_gevaarlijk       := sum_uint32(SourceData/Overstromingsgevaarzonering == Overstromingsgevaarzonering/zoneringK/V/Zeer_gevaarlijk, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
 		
 			attribute<float64> Share_Opp_Zeer_gevaarlijk := Opp_Zeer_gevaarlijk / Opp;
-		}
-	}
-	
-	container ConfigSettings
-	{
-		container Overridable
-		{
-			parameter<String> RSo_DataDir := '%sourceDataDir%/RSopen';
 		}
 	}
 }
