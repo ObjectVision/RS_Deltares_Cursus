@@ -1,0 +1,11 @@
+container Analyse : using = "Classifications;Units;Geography"
+{
+    unit<uint32> Dijkringen := SourceData/DijkringGebied
+    {
+        
+        attribute<meter2> Opp                  := count(per_rdc_25m, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+        attribute<meter2> Opp_Zeer_gevaarlijk  := sum_uint32(SourceData/Overstromingsgevaarzonering == Overstromingsgevaarzonering/zoneringK/V/Zeer_gevaarlijk, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+    
+        attribute<float64> Share_Opp_Zeer_gevaarlijk := Opp_Zeer_gevaarlijk / Opp;
+    }
+}

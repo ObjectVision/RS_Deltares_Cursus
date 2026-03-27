@@ -11,16 +11,9 @@ container Deltares_Cursus
 		unit<Float64> meter2    := meter * meter;
 		unit<Float64> km2       := km * km;
 		unit<Float64> ha        := 10000.0 * meter2, Label = "Hectare";
-
-	}	
+	}
 	
 	#include <Geography.dms>
-	
-	container Parameters
-	{
-	
-	
-	}
 	
 	container Classifications: using = "Units", KeepData = "True"
 	{
@@ -52,7 +45,6 @@ container Deltares_Cursus
 		, StorageReadOnly = "True"
 		{
 			attribute<rdc_meter> geometry       (poly);
-			attribute<.>         per_rdc_25m (rdc_25m) := poly2grid(geometry, rdc_25m);
 		}
 	}	
 	
@@ -60,10 +52,22 @@ container Deltares_Cursus
 	{
 		unit<uint32> Dijkringen := SourceData/DijkringGebied
 		{
-			attribute<meter2>  Opp                       := count(per_rdc_25m, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
-			attribute<meter2>  Opp_Zeer_gevaarlijk       := sum_uint32(SourceData/Overstromingsgevaarzonering == Overstromingsgevaarzonering/zoneringK/V/Zeer_gevaarlijk, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
-		
-			attribute<float64> Share_Opp_Zeer_gevaarlijk := Opp_Zeer_gevaarlijk / Opp;
+			// Task 1: total area per dike ring.
+
+			// Task 2: add area and share for one hazard class of your choice
+
+			// Task 3: add a classification of your share attribute here
+			//         (you need to define the class unit in Classifications first, then use classify() here)
+
+			// Task 6: weighted risk score.
 		}
+
+		// Task 4: define your template here
+		
+		// Task 5: generate all six hazard class analyses via for_each
+
+		// Task 7: select dike rings above a risk threshold 
+
+		// Task 8: export results to GeoPackage 
 	}
 }

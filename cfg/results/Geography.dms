@@ -1,0 +1,32 @@
+container Geography: using = "Units"
+, Descr = "Definities van de verschillende grid domains die kunnen worden gebruikt in het model, RegioIndelingen, en afstandsmatrices."
+{
+	unit<DPoint> rdc_meter_base   : DialogData = "ngr_layer", SpatialReference = "EPSG:28992", Descr = "Geografisch domain in RD-coordinaten, gedefinieerd in meters.";
+	unit<DPoint> rdc_meter        := range(rdc_meter_base, point_xy(x_min, y_min,rdc_meter_base), point_xy(x_max, y_max,rdc_meter_base)), Descr = "Geografisch domain in RD-coordinaten, afgebakend tot Nederland.";
+
+	unit<UInt32> Gridsizes : NrOfRows = 5
+	, Descr = "Verschillende gridsizes die gebruikt kunnen worden in het model, in meters."
+	{
+		attribute<String>  size_str : ['10', '25', '100', '250', '500'];
+		attribute<meter>   size     := size_str[meter];
+		
+		attribute<String>  name0    := 'size_'+string(size)+'m';
+		attribute<String>  name     := replace(name0, '2.5', '2_5');
+	}
+	
+	unit<IPoint> rdc_10m   := perGridsize/size_10m/domain;
+	unit<IPoint> rdc_25m   := perGridsize/size_25m/domain;
+	unit<IPoint> rdc_100m  := perGridsize/size_100m/domain;
+	unit<IPoint> rdc_250m  := perGridsize/size_250m/domain;
+	unit<IPoint> rdc_500m  := perGridsize/size_500m/domain;
+	
+	parameter<Float64> x_min     := 0d;
+	parameter<Float64> x_max     := 280000d;
+	parameter<Float64> y_min     := 300000d;
+	parameter<Float64> y_max     := 625000d;
+
+	container perGridsize := for_each_ne(Gridsizes/name, 'Create_GridDomain_T('+string(Gridsizes/size)+'[float64])'), Descr = "Bevat de verschillende grid domains die gebruikt kunnen worden in het model, op basis van de verschillende gridsizes.";
+		
+	#include<Create_GridDomain_T.dms>
+	#include<ngr_layer.dms> // reference WMS layer
+}

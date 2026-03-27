@@ -1,0 +1,150 @@
+container Deltares_Cursus
+{
+	container Units
+	{
+		unit<Float64> meter     := BaseUnit('m', float64);
+		
+		unit<Float64> km        := 1000.0 * meter;
+		unit<Float64> cm        := 0.01 * meter;
+		unit<Float64> mm        := 0.001 * meter;
+
+		unit<Float64> meter2    := meter * meter;
+		unit<Float64> km2       := km * km;
+		unit<Float64> ha        := 10000.0 * meter2, Label = "Hectare";
+	}
+	
+	#include <Geography.dms>
+	
+	container Classifications: using = "Units", KeepData = "True"
+	{
+		unit<UInt8> OverstromingsgevaarzoneringK: NrOfRows = 6
+		{
+			attribute<String> name       : ['Nihil','Gering_20','Gering_200','Enigszins_gevaarlijk','Gevaarlijk','Zeer_gevaarlijk'];
+			attribute<String> Label      := name;
+			attribute<UInt32> BrushColor : DialogType = "BrushColor",
+			[
+				rgb(127,127,127), rgb(218,218,235), rgb(188,184,217), rgb(158,154,200), rgb(106, 81,163), rgb( 63,  0,125)
+			];
+			
+			container V := for_each_nedv(name, string(id(.)) + '[..]', void, .);
+		}
+		
+		unit<uint8> RiskClass : nrofrows = 5
+		{
+			attribute<float64> ClassBreaks : [0.0, 0.05, 0.10, 0.20, 0.35], DialogType = "Classification";
+			attribute<uint32>  BrushColor  : [
+												rgb(255, 255, 204),  // < 5%      light yellow
+												rgb(254, 204,  92),  // 5-10%     yellow
+												rgb(253, 141,  60),  // 10-20%    orange
+												rgb(240,  59,  32),  // 20-35%    red-orange
+												rgb(189,   0,  38)   // > 35%     dark red
+											], DialogType = "BrushColor";
+			attribute<string>  Label : ['< 5%', '5-10%', '10-20%', '20-35%', '> 35%'];
+		}
+	}
+	
+	container SourceData: using = "Classifications;Units;Geography"
+	, Descr = "Brondata die het model nodig heeft voor de verschillende berekeningen/analyses. De Data worden ingelezen vanuit de SourceDataDir. De bronnen zijn divers."
+	{
+		attribute<OverstromingsgevaarzoneringK> Overstromingsgevaarzonering (rdc_25m)
+		:	StorageName     = "%RSo_DataDir%/Omgeving/Water/Overstromingsgevaarzonering/Risicozonering_010722.tif"
+		,	StorageType     = "gdal.grid"
+		,	StorageReadOnly = "True"
+		,	Source          = "Bron20, 3 juli 2022 per email";
+
+		unit<uint32> DijkringGebied
+		: StorageName     = "%ProjDir%/Data/dijkring.shp"
+		, StorageType     = "gdal.vect"
+		, StorageReadOnly = "True"
+		{
+			attribute<rdc_meter> geometry       (poly);
+			attribute<.>         per_rdc_25m (rdc_25m) := poly2grid(geometry, rdc_25m);
+		}
+	}
+	
+	container Analyse : using = "Classifications;Units;Geography"
+	{
+		unit<uint32> Dijkringen := SourceData/DijkringGebied
+		{
+			// Task 1: total area per dike ring.
+			attribute<meter2>  Opp                       := count(per_rdc_25m, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+			attribute<km2>     Opp_km2                   := Opp[km2];
+
+			// Task 2: add area and share for one hazard class of your choice
+			attribute<meter2>  Opp_Zeer_gevaarlijk       := sum_uint32(SourceData/Overstromingsgevaarzonering == Classifications/OverstromingsgevaarzoneringK/V/Zeer_gevaarlijk, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+			attribute<float64> Share_Opp_Zeer_gevaarlijk := Opp_Zeer_gevaarlijk / Opp;
+
+			// Task 3: add a classification of your share attribute here
+			//         (you need to define the class unit in Classifications first, then use classify() here)
+			attribute<RiskClass> risk_class_rel := classify(Share_Opp_Zeer_gevaarlijk, RiskClass/ClassBreaks)[RiskClass];
+
+			// Task 6: weighted risk score.
+			// Score = sum over all classes of (class_index * share_of_class).
+			// Range: 0.0 (entirely Nihil) to 5.0 (entirely Zeer_gevaarlijk).
+			attribute<float64> risk_score :=
+				  0.0 * HazardByClass/Nihil/share
+				+ 1.0 * HazardByClass/Gering_20/share
+				+ 2.0 * HazardByClass/Gering_200/share
+				+ 3.0 * HazardByClass/Enigszins_gevaarlijk/share
+				+ 4.0 * HazardByClass/Gevaarlijk/share
+				+ 5.0 * HazardByClass/Zeer_gevaarlijk/share;
+		}
+
+		// Task 4: define your template here
+		// Case parameter: a typed index into OverstromingsgevaarzoneringK.
+		// The template calculates area and share for that class within each
+		// dike ring, using the poly2grid relation pre-computed in SourceData.
+		Template HazardClassAnalysis_T
+		{
+			// begin case parameters
+			parameter<Classifications/OverstromingsgevaarzoneringK> class_index;
+			// end case parameters
+
+			// Area of cells belonging to this class, in m2.
+			// sum_uint32 counts True values (=1) per dike ring.
+			attribute<Units/meter2> area_m2 (SourceData/DijkringGebied) := sum_uint32(SourceData/Overstromingsgevaarzonering == class_index, SourceData/DijkringGebied/per_rdc_25m)[float64] * Geography/rdc_25m/NrMeter2PerCell;
+
+			// Share: fraction of the dike ring covered by this class.
+			attribute<float64> share        (SourceData/DijkringGebied) := area_m2 / Analyse/Dijkringen/Opp;
+		}
+		
+		// Task 5: generate all six hazard class analyses via for_each
+		// Result: six sub-containers named after the six hazard classes,
+		// each containing area_m2 and share per dike ring.
+		container HazardByClass := 
+			for_each_ne(
+				 Classifications/OverstromingsgevaarzoneringK/name
+				,'HazardClassAnalysis_T('+string(id(Classifications/OverstromingsgevaarzoneringK))+'[Classifications/OverstromingsgevaarzoneringK])'
+			);
+
+		// Task 7: select dike rings above a risk threshold 
+		// Select dike rings where the combined share of Gevaarlijk + Zeer_gevaarlijk exceeds 15%.
+		unit<uint32> HighRiskDijkringen := select_with_org_rel((HazardByClass/Gevaarlijk/share + HazardByClass/Zeer_gevaarlijk/share) > 0.15)
+		{
+			// Bring key attributes to the selection domain via org_rel.
+			attribute<rdc_meter> geometry   (poly) := org_rel -> geometry;
+			attribute<string>    NAAM              := org_rel -> dijkring;
+			attribute<float64>   risk_score        := Dijkringen/risk_score[org_rel];
+			attribute<float64>   share_dangerous   := (HazardByClass/Gevaarlijk/share + HazardByClass/Zeer_gevaarlijk/share)[org_rel];
+		}
+
+		// Task 8: export results to GeoPackage 
+		// Exports the full Dijkringen domain with all result attributes.
+		// Trigger by double-clicking DijkringenExport in the GUI.
+		unit<uint32> DijkringenExport := Dijkringen
+		,   StorageName = "%LocalDataProjDir%/dijkringen_risico.gpkg"
+		,   StorageType = "gdalwrite.vect"
+		{
+			attribute<rdc_meter> geometry           (poly) := SourceData/DijkringGebied/geometry;
+			attribute<string>    naam                      := SourceData/DijkringGebied/dijkring;
+			attribute<float64>   opp_km2                   := Dijkringen/Opp_km2;
+			attribute<float64>   share_nihil               := HazardByClass/Nihil/share;
+			attribute<float64>   share_gering_20           := HazardByClass/Gering_20/share;
+			attribute<float64>   share_gering_200          := HazardByClass/Gering_200/share;
+			attribute<float64>   share_enigszins           := HazardByClass/Enigszins_gevaarlijk/share;
+			attribute<float64>   share_gevaarlijk          := HazardByClass/Gevaarlijk/share;
+			attribute<float64>   share_zeer_gevaarlijk     := HazardByClass/Zeer_gevaarlijk/share;
+			attribute<float64>   risk_score                := Dijkringen/risk_score;
+		}
+	}
+}
