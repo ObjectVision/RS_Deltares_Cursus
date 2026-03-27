@@ -1,0 +1,79 @@
+container Deltares_Cursus
+{
+	container Units
+	{
+		unit<Float64> meter     := BaseUnit('m', float64);
+		
+		unit<Float64> km        := 1000.0 * meter;
+		unit<Float64> cm        := 0.01 * meter;
+		unit<Float64> mm        := 0.001 * meter;
+
+		unit<Float64> meter2    := meter * meter;
+		unit<Float64> km2       := km * km;
+		unit<Float64> ha        := 10000.0 * meter2, Label = "Hectare";
+
+	}	
+	
+	#include <Geography.dms>
+	
+	container Parameters
+	{
+	
+	
+	}
+	
+	container Classifications: using = "Units", KeepData = "True"
+	{
+		unit<UInt8> OverstromingsgevaarzoneringK: NrOfRows = 6
+		{
+			attribute<String> name       : ['Nihil','Gering_20','Gering_200','Enigszins_gevaarlijk','Gevaarlijk','Zeer_gevaarlijk'];
+			attribute<String> Label      := name;
+			attribute<UInt32> BrushColor : DialogType = "BrushColor",
+			[
+				rgb(127,127,127), rgb(218,218,235), rgb(188,184,217), rgb(158,154,200), rgb(106, 81,163), rgb( 63,  0,125)
+			];
+			
+			container V := for_each_nedv(name, string(id(.)) + '[..]', void, .);
+		}
+	}
+	
+	container SourceData: using = "Classifications;Units;Geography"
+	, Descr = "Brondata die het model nodig heeft voor de verschillende berekeningen/analyses. De Data worden ingelezen vanuit de SourceDataDir. De bronnen zijn divers."
+	{
+		attribute<OverstromingsgevaarzoneringK> Overstromingsgevaarzonering (rdc_25m)
+		:	StorageName     = "%RSo_DataDir%/Omgeving/Water/Overstromingsgevaarzonering/Risicozonering_010722.tif";
+		,	StorageType     = "gdal.grid"
+		,	StorageReadOnly = "True"
+		,	Source          = "Bron20, 3 juli 2022 per email";
+
+		unit<UInt32> DijkringGebied
+		: StorageName     = "%RSo_DataDir%/Omgeving/Water/dijkring/rws_dijkringgebieden_3_2_090420.gdb"
+		, StorageType     = "gdal.vect"
+		, StorageReadOnly = "True"
+		, Source          = "Bron18 - 25 augustus 2022. conversie van shp naar gdb in arcgis 10.8.1"
+		{
+			attribute<rdc_meter> geometry       (poly);
+			attribute<.>         per_rdc_25m (rdc_25m) := poly2grid(geometry, rdc_25m);
+		}
+	}	
+	
+	container Analyse : using = "Classifications;Units;Geography"
+	{
+		unit<uint32> Dijkringen := SourceData/DijkringGebied
+		{
+			
+			attribute<meter2>  Opp                       := count(per_rdc_25m, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+			attribute<meter2>  Opp_Zeer_gevaarlijk       := sum_uint32(SourceData/Overstromingsgevaarzonering == Overstromingsgevaarzonering/zoneringK/V/Zeer_gevaarlijk, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+		
+			attribute<float64> Share_Opp_Zeer_gevaarlijk := Opp_Zeer_gevaarlijk / Opp;
+		}
+	}
+	
+	container ConfigSettings
+	{
+		container Overridable
+		{
+			parameter<String> RSo_DataDir := '%sourceDataDir%/RSopen';
+		}
+	}
+}
