@@ -35,9 +35,9 @@ container Deltares_Cursus
 	{
 		attribute<OverstromingsgevaarzoneringK> Overstromingsgevaarzonering (rdc_25m)
 		:	StorageName     = "%ProjDir%/Data/Risicozonering_010722.tif"
-		,	StorageType     = "gdal.grid"
+		,	StorageType     = "tif"
 		,	StorageReadOnly = "True"
-		,	Source          = "Bron20, 3 juli 2022 per email";
+		,	Source          = "Bron20, 3 juli 2022 per email; door Object Vision in november 2026 5 m verschoven naar het 25 m-grid van het model, met per cel de waarde van de cel waarin zijn middelpunt valt";
 
 		unit<uint32> DijkringGebied
 		: StorageName     = "%ProjDir%/Data/dijkring.shp"
