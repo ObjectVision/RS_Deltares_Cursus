@@ -31,10 +31,10 @@ container Deltares_Cursus
 	}
 	
 	container SourceData: using = "Classifications;Units;Geography"
-	, Descr = "Brondata die het model nodig heeft voor de verschillende berekeningen/analyses. De Data worden ingelezen vanuit de SourceDataDir. De bronnen zijn divers."
+	, Descr = "Brondata die het model nodig heeft voor de verschillende berekeningen/analyses. De data staan in de map data van het project."
 	{
 		attribute<OverstromingsgevaarzoneringK> Overstromingsgevaarzonering (rdc_25m)
-		:	StorageName     = "%RSo_DataDir%/Omgeving/Water/Overstromingsgevaarzonering/Risicozonering_010722.tif"
+		:	StorageName     = "%ProjDir%/Data/Risicozonering_010722.tif"
 		,	StorageType     = "gdal.grid"
 		,	StorageReadOnly = "True"
 		,	Source          = "Bron20, 3 juli 2022 per email";
@@ -45,6 +45,7 @@ container Deltares_Cursus
 		, StorageReadOnly = "True"
 		{
 			attribute<rdc_meter> geometry       (poly);
+			attribute<.>         per_rdc_25m (rdc_25m) := poly2grid(geometry, rdc_25m);
 		}
 	}	
 	
@@ -53,8 +54,11 @@ container Deltares_Cursus
 		unit<uint32> Dijkringen := SourceData/DijkringGebied
 		{
 			// Task 1: total area per dike ring.
+			attribute<meter2>  Opp                       := count(per_rdc_25m, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
 
-			// Task 2: add area and share for one hazard class of your choice
+			// Task 2: add area and share for one hazard class of your choice; the two lines below do this for Zeer_gevaarlijk
+			attribute<meter2>  Opp_Zeer_gevaarlijk       := sum_uint32(SourceData/Overstromingsgevaarzonering == Classifications/OverstromingsgevaarzoneringK/V/Zeer_gevaarlijk, per_rdc_25m)[float64] * rdc_25m/NrMeter2PerCell;
+			attribute<float64> Share_Opp_Zeer_gevaarlijk := Opp_Zeer_gevaarlijk / Opp;
 
 			// Task 3: add a classification of your share attribute here
 			//         (you need to define the class unit in Classifications first, then use classify() here)
